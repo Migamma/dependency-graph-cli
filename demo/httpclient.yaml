@@ -1,0 +1,7 @@
+packageName: org.apache.httpcomponents:httpclient:4.5.14
+repository: https://repo1.maven.org/maven2
+outputFile: output/httpclient.png
+filter: test
+testMode: false
+asciiTree: true
+maxDepth: 5

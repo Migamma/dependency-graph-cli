@@ -1,6 +1,6 @@
 packageName: XA
 repository: tests/graphs/undefined.txt
-outputFile: graph.png
+outputFile: output/reverse-undefined.png
 filter: ""
 testMode: true
 asciiTree: false

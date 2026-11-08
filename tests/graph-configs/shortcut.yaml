@@ -1,7 +1,7 @@
 packageName: A
 repository: tests/graphs/shortcut.txt
-outputFile: graph.png
+outputFile: output/shortcut.png
 filter: ""
 testMode: true
-asciiTree: false
+asciiTree: true
 maxDepth: 3

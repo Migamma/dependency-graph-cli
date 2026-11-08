@@ -1,6 +1,6 @@
 packageName: C
 repository: tests/graphs/cycle.txt
-outputFile: graph.png
+outputFile: output/reverse-cycle.png
 filter: ""
 testMode: true
 asciiTree: false

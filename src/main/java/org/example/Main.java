@@ -11,6 +11,10 @@ import org.example.graph.TestRepository;
 import org.example.maven.HttpPomSource;
 import org.example.maven.MavenDependencyResolver;
 import org.example.maven.MavenDependencySource;
+import org.example.output.AsciiTreeFormatter;
+import org.example.output.D2Generator;
+import org.example.output.PngRenderer;
+import org.example.output.VisualizationException;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -18,10 +22,11 @@ import java.util.List;
 /**
  * Точка входа инструмента визуализации графа зависимостей Maven-пакетов.
  *
- * <p>Приложение читает конфигурацию и строит граф зависимостей заданного
+ * <p>Приложение читает конфигурацию, строит граф зависимостей заданного
  * пакета с учётом транзитивности (из Maven-репозитория или из файла тестового
- * репозитория). С флагом {@code --reverse} вместо этого выводятся обратные
- * зависимости — пакеты тестового репозитория, которые зависят от заданного.
+ * репозитория), выводит его на экран, при необходимости — в виде ASCII-дерева,
+ * и сохраняет описание на языке D2 и изображение в PNG-файле.
+ * С флагом {@code --reverse} вместо этого выводятся обратные зависимости.
  */
 public final class Main {
 
@@ -42,35 +47,55 @@ public final class Main {
         try {
             CommandLineArguments arguments = CommandLineArguments.parse(args);
             Config config = new ConfigLoader().load(arguments.configPath());
-            List<String> output = arguments.reverse()
-                    ? reverseDependencies(config)
-                    : dependencyGraph(config);
-            output.forEach(System.out::println);
-        } catch (ConfigException | DependencySourceException e) {
+            if (arguments.reverse()) {
+                print(reverseDependencies(config));
+            } else {
+                showDependencyGraph(config);
+            }
+        } catch (ConfigException | DependencySourceException | VisualizationException e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(EXIT_ERROR);
         }
     }
 
     /**
-     * Строит граф зависимостей пакета и описывает его.
+     * Строит граф зависимостей, выводит его и сохраняет диаграмму.
      *
      * @param config настройки приложения
-     * @return строки для вывода на экран
      * @throws DependencySourceException если данные о зависимостях не удалось получить
+     * @throws VisualizationException    если изображение не удалось построить
      */
-    private static List<String> dependencyGraph(Config config) {
-        GraphBuilder builder;
+    private static void showDependencyGraph(Config config) {
+        DependencyGraph graph = createBuilder(config).build(config.packageName());
+        print(GraphFormatter.format(graph));
+        if (config.asciiTree()) {
+            System.out.println();
+            print(AsciiTreeFormatter.format(graph));
+        }
+        Path png = Path.of(config.outputFile());
+        Path d2File = PngRenderer.render(D2Generator.generate(graph), png);
+        System.out.println();
+        System.out.println("D2 diagram saved to " + d2File);
+        System.out.println("PNG image saved to " + png);
+    }
+
+    /**
+     * Создаёт построитель графа для источника, заданного режимом работы.
+     *
+     * @param config настройки приложения
+     * @return построитель графа
+     * @throws DependencySourceException если файл тестового репозитория некорректен
+     *                                   или в нём нет анализируемого пакета
+     */
+    private static GraphBuilder createBuilder(Config config) {
         if (config.testMode()) {
             TestRepository repository = loadTestRepository(config);
             requirePackage(repository, config);
-            builder = new GraphBuilder(repository, config.maxDepth(), config.filter());
-        } else {
-            MavenDependencySource source = new MavenDependencySource(
-                    new MavenDependencyResolver(new HttpPomSource(config.repository())));
-            builder = new GraphBuilder(source, config.maxDepth(), config.filter());
+            return new GraphBuilder(repository, config.maxDepth(), config.filter());
         }
-        return GraphFormatter.format(builder.build(config.packageName()));
+        MavenDependencySource source = new MavenDependencySource(
+                new MavenDependencyResolver(new HttpPomSource(config.repository())));
+        return new GraphBuilder(source, config.maxDepth(), config.filter());
     }
 
     /**
@@ -119,5 +144,14 @@ public final class Main {
             throw new DependencySourceException("Package " + config.packageName()
                     + " not found in test repository " + config.repository());
         }
+    }
+
+    /**
+     * Выводит строки на экран.
+     *
+     * @param lines строки текста
+     */
+    private static void print(List<String> lines) {
+        lines.forEach(System.out::println);
     }
 }

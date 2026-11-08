@@ -1,6 +1,6 @@
 packageName: E
 repository: tests/graphs/chain.txt
-outputFile: graph.png
+outputFile: output/reverse-depth-limit.png
 filter: ""
 testMode: true
 asciiTree: false

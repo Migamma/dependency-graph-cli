@@ -11,12 +11,15 @@
 - [x] Этап 2. Сбор данных о прямых зависимостях из Maven-репозитория
 - [x] Этап 3. Построение графа (DFS без рекурсии, глубина, фильтр, циклы, тестовый режим)
 - [x] Этап 4. Обратные зависимости
-- [ ] Этап 5. Визуализация (D2, PNG, ASCII-дерево)
+- [x] Этап 5. Визуализация (D2, PNG, ASCII-дерево)
 
 ## Требования
 
 - Java 21
 - Maven 3.9+
+- [D2](https://d2lang.com) — для построения PNG-изображения графа.
+  Установка: `curl -fsSL https://d2lang.com/install.sh | sh -s --`
+  (при первом сохранении PNG утилита сама скачивает браузер для отрисовки)
 
 ## Сборка и запуск
 
@@ -41,7 +44,7 @@ java -jar target/dependency-graph-cli-1.0-SNAPSHOT.jar [--reverse] [путь к 
 |---------------|---------|--------------------------------------------------------------------------|
 | `packageName` | строка  | Пакет `groupId:artifactId:version`; в тестовом режиме — заглавные буквы (`A`) |
 | `repository`  | строка  | URL Maven-репозитория (http/https); в тестовом режиме — путь к файлу графа |
-| `outputFile`  | строка  | Имя PNG-файла с изображением графа, должно заканчиваться на `.png`      |
+| `outputFile`  | строка  | PNG-файл с изображением графа, должен заканчиваться на `.png`          |
 | `filter`      | строка  | Пакеты, в имени которых есть эта подстрока, пропускаются; необязательный |
 | `testMode`    | boolean | `true` — читать граф из тестового файла вместо репозитория               |
 | `asciiTree`   | boolean | `true` — вывести зависимости в виде ASCII-дерева                         |
@@ -52,7 +55,7 @@ java -jar target/dependency-graph-cli-1.0-SNAPSHOT.jar [--reverse] [путь к 
 ```yaml
 packageName: com.google.guava:guava:33.0.0-jre
 repository: https://repo1.maven.org/maven2
-outputFile: graph.png
+outputFile: output/graph.png
 filter: test
 testMode: false
 asciiTree: true
@@ -163,6 +166,131 @@ Packages depending on D: 3
 
 Стрелка `X <- Y` означает, что пакет `Y` зависит от пакета `X`.
 
+## Визуализация (этап 5)
+
+После построения графа программа:
+
+1. выводит граф на экран (как на этапе 3);
+2. если `asciiTree: true`, выводит зависимости в виде ASCII-дерева;
+3. формирует описание графа на языке диаграмм D2 и сохраняет его рядом
+   с PNG-файлом (`output/graph.png` → `output/graph.d2`);
+4. запускает утилиту `d2`, которая строит по описанию PNG-изображение.
+
+Описание графа на D2 (`tests/graph-configs/cycle.yaml`):
+
+```
+direction: down
+
+"A"
+"B"
+"C"
+"D"
+
+"A" -> "B"
+"B" -> "C"
+"C" -> "A"
+"C" -> "D"
+"D" -> "D"
+```
+
+Имена узлов взяты в кавычки: в D2 точка в имени без кавычек означает
+вложенность, а имена Maven-пакетов содержат точки и двоеточия.
+
+ASCII-дерево строится без рекурсии и использует только ASCII-символы,
+как `mvn dependency:tree`:
+
+```
+A
++-- B
+|   \-- D
+\-- C
+    \-- D (*)
+(*) already shown above, (cycle) cyclic dependency, (max depth) not expanded
+```
+
+- `(*)` — пакет уже показан выше, повторно не раскрывается;
+- `(cycle)` — зависимость ведёт обратно к пакету на текущем пути;
+- `(max depth)` — пакет не раскрыт из-за ограничения глубины.
+
+Изображения и файлы `.d2` складываются в папку `output/`, которая не попадает
+в репозиторий (это результаты работы программы, а не исходный код).
+
+### Примеры для трёх пакетов
+
+В папке `demo/` лежат конфигурации для трёх настоящих пакетов из Maven Central:
+
+```bash
+./run.sh demo/spring-context.yaml     # org.springframework:spring-context:6.1.2
+./run.sh demo/jackson-databind.yaml   # com.fasterxml.jackson.core:jackson-databind:2.16.1
+./run.sh demo/httpclient.yaml         # org.apache.httpcomponents:httpclient:4.5.14
+```
+
+### Сравнение с mvn dependency:tree
+
+Скрипт строит для пакета временный проект с одной зависимостью и запускает
+штатный инструмент Maven:
+
+```bash
+./scripts/compare_with_maven.sh org.springframework:spring-context:6.1.2
+```
+
+Результаты (`maxDepth: 5`, фильтр `test`):
+
+| Пакет | Наша программа | mvn dependency:tree | Совпадение |
+|---|---|---|---|
+| `spring-context:6.1.2` | 8 пакетов, 11 зависимостей | 8 пакетов | те же пакеты и версии |
+| `jackson-databind:2.16.1` | 3 пакета, 2 зависимости | 3 пакета | полностью совпадает |
+| `httpclient:4.5.14` | 4 пакета, 3 зависимости | 4 пакета | полностью совпадает |
+
+Для `jackson-databind` и `httpclient` версии зависимостей в их POM-файлах
+не указаны явно, а берутся из переменных и родительских POM
+(`jackson-base`, `httpcomponents-client`). Совпадение с Maven показывает,
+что наследование и подстановка переменных работают правильно.
+
+Расхождения в `spring-context`:
+
+```
+Наша программа                                  mvn dependency:tree
+spring-context:6.1.2                            spring-context:jar:6.1.2:compile
++-- spring-aop:6.1.2                            +- spring-aop:jar:6.1.2:compile
+|   +-- spring-beans:6.1.2                      +- spring-beans:jar:6.1.2:compile
+|   |   \-- spring-core:6.1.2                   +- spring-core:jar:6.1.2:compile
+|   |       \-- spring-jcl:6.1.2                |  \- spring-jcl:jar:6.1.2:compile
+|   \-- spring-core:6.1.2 (*)                   +- spring-expression:jar:6.1.2:compile
++-- spring-beans:6.1.2 (*)                      \- micrometer-observation:jar:1.12.1:compile
++-- spring-core:6.1.2 (*)                          \- micrometer-commons:jar:1.12.1:compile
++-- spring-expression:6.1.2
+|   \-- spring-core:6.1.2 (*)
+\-- micrometer-observation:1.12.1
+    \-- micrometer-commons:1.12.1
+```
+
+Причины:
+
+1. **Граф и дерево.** Наша программа строит граф и сохраняет все связи:
+   `spring-aop`, `spring-beans` и `spring-expression` зависят от `spring-core`,
+   и все эти рёбра есть в графе (11 зависимостей). Maven показывает дерево,
+   в котором у каждого пакета только один родитель, поэтому связей в нём 7.
+2. **Где показывается общий пакет.** Maven выбирает для каждого пакета
+   ближайшее к корню вхождение (правило nearest wins), поэтому `spring-beans`
+   и `spring-core` у него стоят сразу под `spring-context`. Наше дерево строится
+   в порядке обхода в глубину: первым обходится `spring-aop`, и `spring-beans`
+   показывается под ним, а повторные вхождения помечаются `(*)`. Maven повторные
+   вхождения просто не показывает.
+3. **Формат записи.** Maven добавляет к координатам тип артефакта (`jar`)
+   и область действия (`compile`) и показывает вспомогательный проект
+   `compare:compare`, через который запускается сравнение.
+
+В других пакетах возможны и расхождения по составу, которых в этих трёх
+примерах не было:
+
+- если в графе встречаются разные версии одного пакета, Maven оставляет одну
+  (ближайшую к корню), а наша программа показывает каждую версию отдельным узлом;
+- наша программа не применяет `exclusions`, профили и перемещённые пакеты
+  (relocation), а Maven учитывает их;
+- наша программа ограничивает глубину (`maxDepth`) и применяет фильтр,
+  у `mvn dependency:tree` таких ограничений по умолчанию нет.
+
 ## Обработка ошибок
 
 При любой ошибке программа выводит одну понятную строку и завершается с кодом 1.
@@ -178,7 +306,8 @@ Packages depending on D: 3
   или версию зависимости определить невозможно;
 - файл тестового репозитория имеет неверный формат (с номером строки)
   или не содержит анализируемого пакета;
-- неизвестный аргумент командной строки или режим `--reverse` без тестового режима.
+- неизвестный аргумент командной строки или режим `--reverse` без тестового режима;
+- утилита `d2` не установлена или завершилась с ошибкой, файл диаграммы не удалось сохранить.
 
 ## Тесты
 
@@ -221,6 +350,9 @@ mvn package
 ./tests/run_graph_tests.sh
 ```
 
+Для тестов графа нужна установленная утилита `d2`: при каждом запуске
+без `--reverse` программа сохраняет PNG-изображение в `output/`.
+
 ## Структура
 
 ```
@@ -245,13 +377,21 @@ src/main/java/org/example/
 │   ├── MavenDependencyResolver.java   поиск прямых зависимостей
 │   ├── MavenDependencySource.java     Maven как источник зависимостей для графа
 │   └── MavenException.java            ошибка получения данных из репозитория
-└── graph/
-    ├── DependencySource.java          источник зависимостей
-    ├── DependencySourceException.java ошибка источника зависимостей
-    ├── TestRepository.java            тестовый репозиторий из файла и его переворот
-    ├── DependencyGraph.java           граф зависимостей
-    ├── GraphBuilder.java              построение графа (DFS без рекурсии)
-    └── GraphFormatter.java            вывод графа и обратных зависимостей
+├── graph/
+│   ├── DependencySource.java          источник зависимостей
+│   ├── DependencySourceException.java ошибка источника зависимостей
+│   ├── TestRepository.java            тестовый репозиторий из файла и его переворот
+│   ├── DependencyGraph.java           граф зависимостей
+│   ├── GraphBuilder.java              построение графа (DFS без рекурсии)
+│   └── GraphFormatter.java            вывод графа и обратных зависимостей
+└── output/
+    ├── AsciiTreeFormatter.java        ASCII-дерево зависимостей
+    ├── D2Generator.java               описание графа на языке D2
+    ├── PngRenderer.java               сохранение .d2 и запуск утилиты d2
+    └── VisualizationException.java    ошибка визуализации
+demo/                          конфигурации для трёх настоящих пакетов
+scripts/
+└── compare_with_maven.sh      сравнение с mvn dependency:tree
 tests/
 ├── configs/                   тестовые конфигурации (этап 1)
 ├── graphs/                    тестовые репозитории

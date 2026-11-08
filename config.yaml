@@ -5,7 +5,7 @@ packageName: com.google.guava:guava:33.0.0-jre
 # URL Maven-репозитория (в тестовом режиме — путь к файлу тестового графа)
 repository: https://repo1.maven.org/maven2
 # Имя PNG-файла с изображением графа
-outputFile: graph.png
+outputFile: output/graph.png
 # Пропускать пакеты, в имени которых есть эта подстрока (можно не указывать)
 filter: test
 # true — читать граф из тестового файла вместо настоящего репозитория

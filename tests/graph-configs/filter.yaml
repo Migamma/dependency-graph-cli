@@ -1,7 +1,7 @@
 packageName: A
 repository: tests/graphs/diamond.txt
-outputFile: graph.png
+outputFile: output/filter.png
 filter: "C"
 testMode: true
-asciiTree: false
+asciiTree: true
 maxDepth: 10

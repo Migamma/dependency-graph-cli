@@ -1,6 +1,6 @@
 packageName: Z
 repository: tests/graphs/diamond.txt
-outputFile: graph.png
+outputFile: output/missing-root.png
 filter: ""
 testMode: true
 asciiTree: false

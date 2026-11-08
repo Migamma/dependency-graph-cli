@@ -42,4 +42,14 @@ build/
 .mvn
 *.swp
 *.iml
+pendency-reduced-pom.xml
+*.class
+*.jar
+.idea/
+*.iml
+.vscode/
+.DS_Store
+*.swp
+/output/
+*.png
 dependency-reduced-pom.xml

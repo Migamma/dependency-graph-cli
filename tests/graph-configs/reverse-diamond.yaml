@@ -1,6 +1,6 @@
 packageName: D
 repository: tests/graphs/diamond.txt
-outputFile: graph.png
+outputFile: output/reverse-diamond.png
 filter: ""
 testMode: true
 asciiTree: false

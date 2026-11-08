@@ -1,0 +1,7 @@
+packageName: com.fasterxml.jackson.core:jackson-databind:2.16.1
+repository: https://repo1.maven.org/maven2
+outputFile: output/jackson-databind.png
+filter: test
+testMode: false
+asciiTree: true
+maxDepth: 5

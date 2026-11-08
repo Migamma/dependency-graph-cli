@@ -1,6 +1,6 @@
 packageName: A
 repository: tests/graphs/undefined.txt
-outputFile: graph.png
+outputFile: output/undefined-package.png
 filter: ""
 testMode: true
 asciiTree: false

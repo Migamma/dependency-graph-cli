@@ -1,6 +1,6 @@
 packageName: A
 repository: tests/graphs/invalid.txt
-outputFile: graph.png
+outputFile: output/invalid-file.png
 filter: ""
 testMode: true
 asciiTree: false
