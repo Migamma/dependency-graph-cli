@@ -4,4 +4,4 @@ outputFile: graph.png
 filter: test
 testMode: false
 asciiTree: true
-maxDepth: abc
+maxDepth: 2.5

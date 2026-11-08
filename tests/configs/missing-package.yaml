@@ -1,0 +1,6 @@
+repository: https://repo1.maven.org/maven2
+outputFile: graph.png
+filter: test
+testMode: false
+asciiTree: true
+maxDepth: 3
