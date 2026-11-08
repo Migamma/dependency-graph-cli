@@ -40,5 +40,6 @@ build/
 
 .idea
 .mvn
-
+*.swp
+*.iml
 dependency-reduced-pom.xml
