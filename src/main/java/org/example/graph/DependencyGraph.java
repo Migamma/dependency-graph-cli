@@ -25,8 +25,8 @@ public final class DependencyGraph {
     private final Set<String> notExpanded = new LinkedHashSet<>();
     /** Пакеты, пропущенные из-за фильтра. */
     private final Set<String> filtered = new LinkedHashSet<>();
-    /** Найденные циклы в виде {@code A -> B -> A}. */
-    private final Set<String> cycles = new LinkedHashSet<>();
+    /** Найденные циклы: пакеты по порядку, первый и последний совпадают. */
+    private final Set<List<String>> cycles = new LinkedHashSet<>();
     /** Предупреждения о пакетах, данные о которых не удалось получить. */
     private final List<String> warnings = new ArrayList<>();
 
@@ -90,7 +90,7 @@ public final class DependencyGraph {
      * @param path пакеты цикла по порядку; первый и последний совпадают
      */
     void addCycle(List<String> path) {
-        cycles.add(String.join(" -> ", path));
+        cycles.add(List.copyOf(path));
     }
 
     /**
@@ -165,9 +165,9 @@ public final class DependencyGraph {
     /**
      * Возвращает найденные циклы.
      *
-     * @return циклы в виде {@code A -> B -> A}
+     * @return циклы: пакеты по порядку обхода, первый и последний совпадают
      */
-    public Set<String> cycles() {
+    public Set<List<String>> cycles() {
         return Collections.unmodifiableSet(cycles);
     }
 

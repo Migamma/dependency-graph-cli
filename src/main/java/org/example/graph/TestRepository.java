@@ -3,8 +3,9 @@ package org.example.graph;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -50,7 +51,7 @@ public final class TestRepository implements DependencySource {
         } catch (IOException e) {
             throw new DependencySourceException("Cannot read test repository: " + path);
         }
-        Map<String, List<String>> dependencies = new HashMap<>();
+        Map<String, List<String>> dependencies = new LinkedHashMap<>();
         for (int index = 0; index < lines.size(); index++) {
             parseLine(lines.get(index), index + 1, path, dependencies);
         }
@@ -117,6 +118,28 @@ public final class TestRepository implements DependencySource {
                                                        String problem) {
         return new DependencySourceException("Invalid test repository " + path
                 + ", line " + lineNumber + ": " + problem);
+    }
+
+    /**
+     * Возвращает перевёрнутый репозиторий: в нём зависимостями пакета
+     * считаются пакеты, которые зависят от него в исходном репозитории.
+     *
+     * <p>Обход перевёрнутого репозитория тем же алгоритмом даёт
+     * обратные зависимости. В перевёрнутом репозитории описаны все пакеты
+     * исходного, включая те, у которых не было своей строки.
+     *
+     * @return перевёрнутый репозиторий
+     */
+    public TestRepository reversed() {
+        Map<String, List<String>> dependents = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> entry : dependencies.entrySet()) {
+            dependents.computeIfAbsent(entry.getKey(), key -> new ArrayList<>());
+            for (String dependency : entry.getValue()) {
+                dependents.computeIfAbsent(dependency, key -> new ArrayList<>())
+                        .add(entry.getKey());
+            }
+        }
+        return new TestRepository(dependents);
     }
 
     /**

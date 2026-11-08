@@ -4,7 +4,6 @@ import org.example.config.Config;
 import org.example.config.ConfigException;
 import org.example.config.ConfigLoader;
 import org.example.graph.DependencyGraph;
-import org.example.graph.DependencySource;
 import org.example.graph.DependencySourceException;
 import org.example.graph.GraphBuilder;
 import org.example.graph.GraphFormatter;
@@ -14,20 +13,18 @@ import org.example.maven.MavenDependencyResolver;
 import org.example.maven.MavenDependencySource;
 
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * Точка входа инструмента визуализации графа зависимостей Maven-пакетов.
  *
- * <p>На этапе 3 приложение читает конфигурацию, строит граф зависимостей
- * заданного пакета с учётом транзитивности (из Maven-репозитория или из файла
- * тестового репозитория) и выводит его на экран.
+ * <p>Приложение читает конфигурацию и строит граф зависимостей заданного
+ * пакета с учётом транзитивности (из Maven-репозитория или из файла тестового
+ * репозитория). С флагом {@code --reverse} вместо этого выводятся обратные
+ * зависимости — пакеты тестового репозитория, которые зависят от заданного.
  */
 public final class Main {
 
-    /** Путь к конфигурации, если он не передан аргументом. */
-    private static final String DEFAULT_CONFIG_PATH = "config.yaml";
-    /** Максимальное число аргументов командной строки. */
-    private static final int MAX_ARGUMENTS = 1;
     /** Код возврата при ошибке. */
     private static final int EXIT_ERROR = 1;
 
@@ -38,23 +35,17 @@ public final class Main {
     /**
      * Запускает приложение.
      *
-     * @param args необязательный путь к YAML-файлу конфигурации;
-     *             по умолчанию используется {@code config.yaml}
+     * @param args необязательные флаг {@code --reverse} и путь к YAML-файлу
+     *             конфигурации; по умолчанию используется {@code config.yaml}
      */
     public static void main(String[] args) {
-        if (args.length > MAX_ARGUMENTS) {
-            System.err.println("Usage: java -jar dependency-graph-cli.jar [config.yaml]");
-            System.exit(EXIT_ERROR);
-        }
-        String configPath = args.length > 0 ? args[0] : DEFAULT_CONFIG_PATH;
-
         try {
-            Config config = new ConfigLoader().load(configPath);
-            DependencySource source = createSource(config);
-            GraphBuilder builder =
-                    new GraphBuilder(source, config.maxDepth(), config.filter());
-            DependencyGraph graph = builder.build(config.packageName());
-            GraphFormatter.format(graph).forEach(System.out::println);
+            CommandLineArguments arguments = CommandLineArguments.parse(args);
+            Config config = new ConfigLoader().load(arguments.configPath());
+            List<String> output = arguments.reverse()
+                    ? reverseDependencies(config)
+                    : dependencyGraph(config);
+            output.forEach(System.out::println);
         } catch (ConfigException | DependencySourceException e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(EXIT_ERROR);
@@ -62,23 +53,71 @@ public final class Main {
     }
 
     /**
-     * Создаёт источник зависимостей в зависимости от режима работы.
+     * Строит граф зависимостей пакета и описывает его.
      *
      * @param config настройки приложения
-     * @return тестовый репозиторий из файла или настоящий Maven-репозиторий
-     * @throws DependencySourceException если файл тестового репозитория
-     *                                   некорректен или в нём нет анализируемого пакета
+     * @return строки для вывода на экран
+     * @throws DependencySourceException если данные о зависимостях не удалось получить
      */
-    private static DependencySource createSource(Config config) {
-        if (!config.testMode()) {
-            return new MavenDependencySource(
+    private static List<String> dependencyGraph(Config config) {
+        GraphBuilder builder;
+        if (config.testMode()) {
+            TestRepository repository = loadTestRepository(config);
+            requirePackage(repository, config);
+            builder = new GraphBuilder(repository, config.maxDepth(), config.filter());
+        } else {
+            MavenDependencySource source = new MavenDependencySource(
                     new MavenDependencyResolver(new HttpPomSource(config.repository())));
+            builder = new GraphBuilder(source, config.maxDepth(), config.filter());
         }
-        TestRepository repository = TestRepository.load(Path.of(config.repository()));
+        return GraphFormatter.format(builder.build(config.packageName()));
+    }
+
+    /**
+     * Находит обратные зависимости пакета тем же обходом в глубину,
+     * но по перевёрнутому тестовому репозиторию.
+     *
+     * @param config настройки приложения
+     * @return строки для вывода на экран
+     * @throws ConfigException           если тестовый режим выключен
+     * @throws DependencySourceException если файл тестового репозитория некорректен
+     *                                   или в нём нет заданного пакета
+     */
+    private static List<String> reverseDependencies(Config config) {
+        if (!config.testMode()) {
+            throw new ConfigException(
+                    "Reverse dependencies mode requires testMode: true");
+        }
+        TestRepository reversed = loadTestRepository(config).reversed();
+        requirePackage(reversed, config);
+        GraphBuilder builder =
+                new GraphBuilder(reversed, config.maxDepth(), config.filter());
+        DependencyGraph graph = builder.build(config.packageName());
+        return GraphFormatter.formatReverse(graph);
+    }
+
+    /**
+     * Загружает тестовый репозиторий, указанный в конфигурации.
+     *
+     * @param config настройки приложения
+     * @return тестовый репозиторий
+     * @throws DependencySourceException если файл некорректен
+     */
+    private static TestRepository loadTestRepository(Config config) {
+        return TestRepository.load(Path.of(config.repository()));
+    }
+
+    /**
+     * Проверяет, что анализируемый пакет есть в тестовом репозитории.
+     *
+     * @param repository тестовый репозиторий
+     * @param config     настройки приложения
+     * @throws DependencySourceException если пакета нет в репозитории
+     */
+    private static void requirePackage(TestRepository repository, Config config) {
         if (!repository.contains(config.packageName())) {
             throw new DependencySourceException("Package " + config.packageName()
                     + " not found in test repository " + config.repository());
         }
-        return repository;
     }
 }

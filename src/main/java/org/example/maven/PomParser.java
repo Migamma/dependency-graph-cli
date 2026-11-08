@@ -32,6 +32,12 @@ public class PomParser {
     private static final String DEPENDENCIES = "dependencies";
 
     /**
+     * Создаёт разборщик POM-файлов.
+     */
+    public PomParser() {
+    }
+
+    /**
      * Разбирает текст POM-файла.
      *
      * @param xml    содержимое POM-файла

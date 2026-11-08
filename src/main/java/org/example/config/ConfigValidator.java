@@ -27,6 +27,12 @@ public class ConfigValidator {
     private static final Pattern TEST_PACKAGE_NAME = Pattern.compile("[A-Z]+");
 
     /**
+     * Создаёт проверяющий объект для параметров конфигурации.
+     */
+    public ConfigValidator() {
+    }
+
+    /**
      * Проверяет все параметры конфигурации.
      *
      * @param config настройки для проверки

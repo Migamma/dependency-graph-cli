@@ -46,6 +46,12 @@ public class ConfigLoader {
     private final ConfigValidator validator = new ConfigValidator();
 
     /**
+     * Создаёт загрузчик конфигурации.
+     */
+    public ConfigLoader() {
+    }
+
+    /**
      * Читает и проверяет файл конфигурации.
      *
      * @param path путь к YAML-файлу конфигурации

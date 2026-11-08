@@ -2,6 +2,7 @@ package org.example.graph;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -18,8 +19,8 @@ public final class GraphFormatter {
     }
 
     /**
-     * Описывает граф: зависимости каждого пакета, пропущенные фильтром
-     * пакеты, найденные циклы, предупреждения и итоговые числа.
+     * Описывает граф зависимостей: зависимости каждого пакета, пропущенные
+     * фильтром пакеты, найденные циклы, предупреждения и итоговые числа.
      *
      * @param graph граф зависимостей
      * @return строки текста
@@ -27,35 +28,106 @@ public final class GraphFormatter {
     public static List<String> format(DependencyGraph graph) {
         List<String> lines = new ArrayList<>();
         lines.add("Dependency graph of " + graph.root() + ":");
-        for (String node : graph.nodes()) {
-            lines.add(INDENT + node + " -> " + describeDependencies(graph, node));
-        }
-        if (!graph.filtered().isEmpty()) {
-            lines.add("Skipped by filter: " + String.join(", ", graph.filtered()));
-        }
-        addSection(lines, "Cycles", graph.cycles());
-        addSection(lines, "Warnings", graph.warnings());
+        addEdges(lines, graph, " -> ", "(no dependencies)");
+        addDetails(lines, graph, cycleStrings(graph, false));
         lines.add("Packages: " + graph.nodes().size()
                 + ", dependencies: " + graph.edgeCount());
         return lines;
     }
 
     /**
-     * Описывает прямые зависимости одного пакета.
+     * Описывает граф обратных зависимостей: какие пакеты зависят от корня
+     * (прямо или через другие пакеты) и через какие пакеты проходят эти связи.
      *
-     * @param graph граф зависимостей
-     * @param node  имя пакета
-     * @return список зависимостей через запятую или пояснение, почему их нет
+     * <p>Граф должен быть построен по перевёрнутому репозиторию, то есть
+     * его рёбра ведут от пакета к пакетам, которые от него зависят.
+     *
+     * @param graph граф обратных зависимостей
+     * @return строки текста
      */
-    private static String describeDependencies(DependencyGraph graph, String node) {
+    public static List<String> formatReverse(DependencyGraph graph) {
+        List<String> lines = new ArrayList<>();
+        Set<String> dependents = new LinkedHashSet<>(graph.nodes());
+        dependents.remove(graph.root());
+
+        lines.add("Packages that depend on " + graph.root() + ":");
+        lines.add(INDENT + (dependents.isEmpty() ? "(none)" : String.join(", ", dependents)));
+        lines.add("Reverse dependency paths:");
+        addEdges(lines, graph, " <- ", "(no dependents)");
+        addDetails(lines, graph, cycleStrings(graph, true));
+        lines.add("Packages depending on " + graph.root() + ": " + dependents.size());
+        return lines;
+    }
+
+    /**
+     * Добавляет строку для каждого пакета графа со списком его соседей.
+     *
+     * @param lines     строки текста
+     * @param graph     граф
+     * @param arrow     стрелка между пакетом и списком соседей
+     * @param emptyText текст для пакета без соседей
+     */
+    private static void addEdges(List<String> lines, DependencyGraph graph,
+                                 String arrow, String emptyText) {
+        for (String node : graph.nodes()) {
+            lines.add(INDENT + node + arrow + describeNeighbours(graph, node, emptyText));
+        }
+    }
+
+    /**
+     * Добавляет разделы о пропущенных фильтром пакетах, циклах и предупреждениях.
+     *
+     * @param lines  строки текста
+     * @param graph  граф
+     * @param cycles циклы, уже записанные строками
+     */
+    private static void addDetails(List<String> lines, DependencyGraph graph,
+                                   List<String> cycles) {
+        if (!graph.filtered().isEmpty()) {
+            lines.add("Skipped by filter: " + String.join(", ", graph.filtered()));
+        }
+        addSection(lines, "Cycles", cycles);
+        addSection(lines, "Warnings", graph.warnings());
+    }
+
+    /**
+     * Описывает соседей одного пакета.
+     *
+     * @param graph     граф
+     * @param node      имя пакета
+     * @param emptyText текст для пакета без соседей
+     * @return соседи через запятую или пояснение, почему их нет
+     */
+    private static String describeNeighbours(DependencyGraph graph, String node,
+                                             String emptyText) {
         if (!graph.isExpanded(node)) {
             return "(not expanded: max depth reached)";
         }
-        Set<String> dependencies = graph.dependenciesOf(node);
-        if (dependencies.isEmpty()) {
-            return "(no dependencies)";
+        Set<String> neighbours = graph.dependenciesOf(node);
+        if (neighbours.isEmpty()) {
+            return emptyText;
         }
-        return String.join(", ", dependencies);
+        return String.join(", ", neighbours);
+    }
+
+    /**
+     * Записывает циклы строками вида {@code A -> B -> A}.
+     *
+     * <p>Циклы графа обратных зависимостей найдены по перевёрнутым рёбрам,
+     * поэтому для них порядок пакетов разворачивается, чтобы стрелки
+     * показывали обычное направление зависимости.
+     *
+     * @param graph    граф
+     * @param reversed {@code true}, если граф построен по перевёрнутому репозиторию
+     * @return циклы в виде строк
+     */
+    private static List<String> cycleStrings(DependencyGraph graph, boolean reversed) {
+        List<String> result = new ArrayList<>();
+        for (List<String> cycle : graph.cycles()) {
+            List<String> path = reversed ? cycle.reversed() : cycle;
+            result.add(String.join(" -> ", path));
+        }
+        return result;
     }
 
     /**

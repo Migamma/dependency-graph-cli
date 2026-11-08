@@ -1,0 +1,7 @@
+packageName: D
+repository: tests/graphs/diamond.txt
+outputFile: graph.png
+filter: ""
+testMode: true
+asciiTree: false
+maxDepth: 10
