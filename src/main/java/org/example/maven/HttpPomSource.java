@@ -20,7 +20,7 @@ public class HttpPomSource implements PomSource {
     private static final Duration TIMEOUT = Duration.ofSeconds(20);
     /** HTTP-код успешного ответа. */
     private static final int HTTP_OK = 200;
-    /** HTTP-код ответа «не найдено». */
+    /** HTTP-код ответа "не найдено". */
     private static final int HTTP_NOT_FOUND = 404;
 
     /** Адрес корня репозитория без завершающего слэша. */

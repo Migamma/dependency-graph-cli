@@ -3,19 +3,24 @@ package org.example;
 import org.example.config.Config;
 import org.example.config.ConfigException;
 import org.example.config.ConfigLoader;
-import org.example.maven.Dependency;
+import org.example.graph.DependencyGraph;
+import org.example.graph.DependencySource;
+import org.example.graph.DependencySourceException;
+import org.example.graph.GraphBuilder;
+import org.example.graph.GraphFormatter;
+import org.example.graph.TestRepository;
 import org.example.maven.HttpPomSource;
-import org.example.maven.MavenCoordinates;
 import org.example.maven.MavenDependencyResolver;
-import org.example.maven.MavenException;
+import org.example.maven.MavenDependencySource;
 
-import java.util.List;
+import java.nio.file.Path;
 
 /**
  * Точка входа инструмента визуализации графа зависимостей Maven-пакетов.
  *
- * <p>На этапе 2 приложение читает конфигурацию, загружает POM-файл заданного
- * пакета из Maven-репозитория и выводит его прямые зависимости.
+ * <p>На этапе 3 приложение читает конфигурацию, строит граф зависимостей
+ * заданного пакета с учётом транзитивности (из Maven-репозитория или из файла
+ * тестового репозитория) и выводит его на экран.
  */
 public final class Main {
 
@@ -45,35 +50,35 @@ public final class Main {
 
         try {
             Config config = new ConfigLoader().load(configPath);
-            printDirectDependencies(config);
-        } catch (ConfigException | MavenException e) {
+            DependencySource source = createSource(config);
+            GraphBuilder builder =
+                    new GraphBuilder(source, config.maxDepth(), config.filter());
+            DependencyGraph graph = builder.build(config.packageName());
+            GraphFormatter.format(graph).forEach(System.out::println);
+        } catch (ConfigException | DependencySourceException e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(EXIT_ERROR);
         }
     }
 
     /**
-     * Загружает и выводит прямые зависимости пакета из конфигурации.
+     * Создаёт источник зависимостей в зависимости от режима работы.
      *
      * @param config настройки приложения
-     * @throws ConfigException если включён тестовый режим (он появится на этапе 3)
-     * @throws MavenException  если зависимости не удалось получить
+     * @return тестовый репозиторий из файла или настоящий Maven-репозиторий
+     * @throws DependencySourceException если файл тестового репозитория
+     *                                   некорректен или в нём нет анализируемого пакета
      */
-    private static void printDirectDependencies(Config config) {
-        if (config.testMode()) {
-            throw new ConfigException("Test repository mode is not supported yet");
+    private static DependencySource createSource(Config config) {
+        if (!config.testMode()) {
+            return new MavenDependencySource(
+                    new MavenDependencyResolver(new HttpPomSource(config.repository())));
         }
-        MavenCoordinates coordinates = MavenCoordinates.parse(config.packageName());
-        MavenDependencyResolver resolver =
-                new MavenDependencyResolver(new HttpPomSource(config.repository()));
-        List<Dependency> dependencies = resolver.getDirectDependencies(coordinates);
-
-        System.out.println("Direct dependencies of " + coordinates + ":");
-        if (dependencies.isEmpty()) {
-            System.out.println("  (none)");
+        TestRepository repository = TestRepository.load(Path.of(config.repository()));
+        if (!repository.contains(config.packageName())) {
+            throw new DependencySourceException("Package " + config.packageName()
+                    + " not found in test repository " + config.repository());
         }
-        for (Dependency dependency : dependencies) {
-            System.out.println("  " + dependency);
-        }
+        return repository;
     }
 }

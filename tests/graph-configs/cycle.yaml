@@ -1,0 +1,7 @@
+packageName: A
+repository: tests/graphs/cycle.txt
+outputFile: graph.png
+filter: ""
+testMode: true
+asciiTree: false
+maxDepth: 10
