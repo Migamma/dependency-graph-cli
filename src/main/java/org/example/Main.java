@@ -3,12 +3,19 @@ package org.example;
 import org.example.config.Config;
 import org.example.config.ConfigException;
 import org.example.config.ConfigLoader;
+import org.example.maven.Dependency;
+import org.example.maven.HttpPomSource;
+import org.example.maven.MavenCoordinates;
+import org.example.maven.MavenDependencyResolver;
+import org.example.maven.MavenException;
+
+import java.util.List;
 
 /**
  * Точка входа инструмента визуализации графа зависимостей Maven-пакетов.
  *
- * <p>На этапе 1 приложение читает конфигурацию, проверяет её и выводит
- * все параметры в формате ключ-значение.
+ * <p>На этапе 2 приложение читает конфигурацию, загружает POM-файл заданного
+ * пакета из Maven-репозитория и выводит его прямые зависимости.
  */
 public final class Main {
 
@@ -38,25 +45,35 @@ public final class Main {
 
         try {
             Config config = new ConfigLoader().load(configPath);
-            printConfig(config);
-        } catch (ConfigException e) {
+            printDirectDependencies(config);
+        } catch (ConfigException | MavenException e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(EXIT_ERROR);
         }
     }
 
     /**
-     * Выводит все параметры конфигурации в формате ключ-значение.
+     * Загружает и выводит прямые зависимости пакета из конфигурации.
      *
      * @param config настройки приложения
+     * @throws ConfigException если включён тестовый режим (он появится на этапе 3)
+     * @throws MavenException  если зависимости не удалось получить
      */
-    private static void printConfig(Config config) {
-        System.out.println("packageName: " + config.packageName());
-        System.out.println("repository: " + config.repository());
-        System.out.println("outputFile: " + config.outputFile());
-        System.out.println("filter: " + config.filter());
-        System.out.println("testMode: " + config.testMode());
-        System.out.println("asciiTree: " + config.asciiTree());
-        System.out.println("maxDepth: " + config.maxDepth());
+    private static void printDirectDependencies(Config config) {
+        if (config.testMode()) {
+            throw new ConfigException("Test repository mode is not supported yet");
+        }
+        MavenCoordinates coordinates = MavenCoordinates.parse(config.packageName());
+        MavenDependencyResolver resolver =
+                new MavenDependencyResolver(new HttpPomSource(config.repository()));
+        List<Dependency> dependencies = resolver.getDirectDependencies(coordinates);
+
+        System.out.println("Direct dependencies of " + coordinates + ":");
+        if (dependencies.isEmpty()) {
+            System.out.println("  (none)");
+        }
+        for (Dependency dependency : dependencies) {
+            System.out.println("  " + dependency);
+        }
     }
 }

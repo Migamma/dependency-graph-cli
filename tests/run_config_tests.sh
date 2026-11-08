@@ -7,8 +7,8 @@ JAR="target/dependency-graph-cli-1.0-SNAPSHOT.jar"
 CONFIGS="tests/configs"
 
 CASES=(
-    "valid.yaml|0|maxDepth: 3"
-    "valid-no-filter.yaml|0|filter: "
+    "valid.yaml|1|Cannot connect to repository"
+    "valid-no-filter.yaml|1|Cannot connect to repository"
     "no-such-config.yaml|1|Cannot read file"
     "empty.yaml|1|must contain key-value pairs"
     "broken.yaml|1|Invalid YAML"

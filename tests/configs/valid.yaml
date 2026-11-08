@@ -1,5 +1,5 @@
 packageName: com.google.guava:guava:33.0.0-jre
-repository: https://repo1.maven.org/maven2
+repository: http://127.0.0.1:9/maven2
 outputFile: graph.png
 filter: test
 testMode: false

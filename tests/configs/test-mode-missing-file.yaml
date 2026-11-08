@@ -1,5 +1,5 @@
 packageName: A
-repository: tests/graphs/no-such-file.txt
+repository: tests/no-such-graph.txt
 outputFile: graph.png
 filter: X
 testMode: true
