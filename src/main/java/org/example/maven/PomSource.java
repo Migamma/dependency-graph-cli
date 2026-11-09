@@ -1,8 +1,6 @@
 package org.example.maven;
 
-/**
- * Источник POM-файлов: по координатам пакета возвращает текст его POM-файла.
- */
+
 public interface PomSource {
 
     /**
